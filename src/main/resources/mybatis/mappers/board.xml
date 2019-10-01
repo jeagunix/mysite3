@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="board">
+
+	<!-- 게시판에 보여야하는 list -->
+	<select id="getList" parameterType="map" resultType="boardvo">
+		<![CDATA[
+			select b.no,
+			   b.title, 
+			   u.name as userName, 
+			   b.hit, 
+			   date_format(b.reg_date, '%Y-%m-%d %h:%i:%s') as regDate,
+			   b.depth, 
+			   b.g_no as gNo, 
+			   b.status, 
+			   b.user_no as userNo
+		  from board b, user u 
+		 where b.user_no = u.no 
+		  and b.status != 3
+		  and (b.title like #{keyword } or b.contents like #{keyword })
+	 order by b.g_no desc, o_no asc
+	    limit #{page }, #{showCont }
+		]]>
+
+	</select>
+
+	<!-- 게시판 글 전부 count -->
+	<select id="countAll" resultType="int">
+		<![CDATA[
+			select count(*)
+			  from board
+			 where status !=3
+		]]>
+	</select>
+
+	<!-- keyword에 맞는 글 전부 count -->
+	<select id="countKeywordAll" parameterType="String"
+		resultType="int">
+		<![CDATA[
+			select count(*)
+			  from board
+			 where (title like #{value } or contents like #{value })
+			   and status != 3
+		]]>
+	</select>
+
+	<!-- 아무 글이 없을 때 처음 글을 작성할 때 insert -->
+	<insert id="insertFirst" parameterType="boardvo">
+		
+		<![CDATA[
+			insert 
+		  	  into board 
+			values (null, #{title},  #{contents}, #{hit}, now(), (select ifnull(max(g_no+1), 1) from board as b), #{oNo}, #{depth}, #{userNo}, 1)
+	
+		]]>
+		<selectKey keyProperty="no" resultType="Long">
+			<![CDATA[
+				select last_insert_id()
+			]]>
+		</selectKey>
+	</insert>
+
+	<!-- 글에 답글 달았을 떄 insert -->
+	<insert id="insertOther" parameterType="boardvo">
+		<![CDATA[
+			insert 
+			  into board 
+			values (null, #{title}, #{contents}, #{hit }, now(), #{gNo}, #{oNo}, #{depth}, #{userNo}, 1)
+		]]>
+		<selectKey keyProperty="no" resultType="Long">
+			<![CDATA[
+				select last_insert_id()
+			]]>
+		</selectKey>
+	</insert>
+	
+	<!-- 리스트에서 삭제를 눌렀을 때 update -->
+	<update id="delete" parameterType="boardvo">
+		<![CDATA[
+		update board 
+		   set status = 2, title ='삭제된 글입니다.', contents='삭제된 글입니다.' 
+		 where no = #{no }
+		]]>
+	</update>
+	
+	<update id="statusCheck" parameterType="boardvo">
+		<![CDATA[
+			update board		   
+			   set status = 3
+		     where g_no = #{gNo} and (select * 
+		     					   from (select count(g_no)
+								  		    from board as b
+								           where g_no=#{gNo}) tmp1) = (select * 
+								                                    from (select count(status)
+									  									    from board as c
+									  							    	   where g_no=#{gNo} and status =2) tmp2)
+			
+		
+		]]>
+	</update>
+	
+	<!-- 글에 들어가면 조회수 update -->
+	<update id="hitUpdate" parameterType="boardvo">
+		<![CDATA[
+			update board 
+			   set hit = hit+1 
+			 where no = #{no }
+		]]>
+	</update>
+	
+	<!-- view에 출력시키는 select  -->
+	<select id="view" parameterType="Long" resultType="boardvo" >
+		 <![CDATA[
+			select no, title, contents, g_no as gNo, o_no as oNo, depth, hit, user_no as userNo
+			  from board
+			 where no = #{value }
+		]]>
+	</select>
+	
+	<!-- oNo, depth 플러스 update -->
+	<update id="replyUpdate" parameterType="boardvo">
+		<![CDATA[
+			update board
+			   set o_no = o_no +1
+			 where g_no = #{gNo } and o_no >= #{oNo }
+		]]>
+	</update>
+	
+	<!-- modify를 위한 update -->
+	<update id="modify" parameterType="boardvo">
+		<![CDATA[
+			update board
+			   set title = #{title }, contents= #{contents }
+			 where no = #{no }
+			   
+		]]>
+	</update>
+	
+</mapper>
